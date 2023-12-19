@@ -55,22 +55,37 @@ covariates_tidy <- covariates %>%
 # (d) gradrate_ready
 # ステップ 1: 4年卒業率の計算
 # 男女合計および男子学生の4年卒業率を計算し、新たな列として追加
-gradrate_tidy$m_4yrgrads <- as.numeric(gradrate_tidy$m_4yrgrads)
-gradrate_tidy$m_cohortsize <- as.numeric(gradrate_tidy$m_cohortsize)
-gradrate_tidy$men_gradrate_4yr <- gradrate_tidy$m_4yrgrads / gradrate_tidy$m_cohortsize
-gradrate_tidy$totcohortsize <- as.numeric(gradrate_tidy$totcohortsize)
-gradrate_tidy$tot4yrgrads <- as.numeric(gradrate_tidy$tot4yrgrads)
-gradrate_tidy$totgradrate_4yr <- gradrate_tidy$tot4yrgrads / gradrate_tidy$totcohortsize
+gradrate_tidy <- gradrate_tidy |> 
+  mutate(
+    m_4yrgrads = as.numeric(m_4yrgrads),
+    m_cohortsize = as.numeric(m_cohortsize),
+    men_gradrate_4yr = m_4yrgrads / m_cohortsize
+  )
+
+gradrate_tidy <- gradrate_tidy |> 
+  mutate(
+    tot4yrgrads = as.numeric(tot4yrgrads),
+    totcohortsize = as.numeric(totcohortsize),
+    totgradrate_4yr = tot4yrgrads / totcohortsize
+  )
+
 
 # ステップ 2: 卒業率の整形
 # 卒業率を有効数字3桁に調整
-gradrate_tidy$men_gradrate_4yr <- round(gradrate_tidy$men_gradrate_4yr, digits = 3)
-gradrate_tidy$totgradrate_4yr <- round(gradrate_tidy$totgradrate_4yr, digits = 3)
-gradrate_tidy$women_gradrate_4yr <- round(gradrate_tidy$women_gradrate_4yr, digits = 3)
+
+gradrate_tidy <- gradrate_tidy |> 
+                   mutate(
+                    men_gradrate_4yr = round(men_gradrate_4yr, digits = 3),
+                    totgradrate_4yr = round(totgradrate_4yr, digits = 3),
+                    women_gradrate_4yr = round(women_gradrate_4yr, digits = 3)
+                   )
+
 
 # ステップ 3: 欠損値の削除
 # 卒業率に欠損値が含まれる行を削除
-gradrate_ready <- gradrate_tidy[complete.cases(gradrate_tidy[, c("totgradrate_4yr", "men_gradrate_4yr", "women_gradrate_4yr")]), ]
+gradrate_ready <- gradrate_tidy %>%
+  filter(complete.cases(totgradrate_4yr, men_gradrate_4yr, women_gradrate_4yr))
+
 
 # (e) covariates_ready
 # ステップ 1: データ期間の調整
@@ -84,19 +99,37 @@ covariates_ready <- covariates_tidy %>% filter(unitid %in% gradrate_ready$unitid
 # (f) master
 # ステップ 1: データの結合
 # semester_dummy_tidy、covariates_ready、gradrate_ready を結合
-covariates_ready$unitid <- as.character(covariates_ready$unitid)
-gradrate_ready$unitid <- as.character(gradrate_ready$unitid)
-semester_dummy_tidy$unitid <- as.character(semester_dummy_tidy$unitid)
-covariates_ready$year <- as.numeric(covariates_ready$year)
-gradrate_ready$year <- as.numeric(gradrate_ready$year)
-semester_dummy_tidy$year <- as.numeric(semester_dummy_tidy$year)
+covariates_ready <- covariates_ready |> 
+  mutate(
+    unitid = as.character(unitid),
+    year = as.numeric(year)
+  )
+
+gradrate_ready <- gradrate_ready |> 
+  mutate(
+    unitid = as.character(unitid),
+    year = as.numeric(year)
+  )
+
+semester_dummy_tidy <- semester_dummy_tidy |> 
+  mutate(
+    unitid = as.character(unitid),
+    year = as.numeric(year)
+  )
+
+
+#結合
 master <- semester_dummy_tidy %>%
   left_join(covariates_ready, by = c("unitid", "year")) %>%
   left_join(gradrate_ready, by = c("unitid", "year"))
 
 # ステップ 2: 白人学生割合の計算
 # 白人学生が学生全体に占める割合を計算し、小数第3位までに調整
-master$white_cohortsize <- as.numeric(master$white_cohortsize)
-master$totcohortsize <- as.numeric(master$totcohortsize)
-master$white_rate <- master$white_cohortsize / master$totcohortsize
-master$white_rate <- round(master$white_rate, digits = 3)
+master <- master |>
+  mutate(
+    white_cohortsize = as.numeric(white_cohortsize),
+    totcohortsize = as.numeric(totcohortsize)
+    white_rate = white_cohortsize / totcohortsize
+    white_rate = round(white_rate, digits = 3)
+  )
+
