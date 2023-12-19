@@ -4,7 +4,7 @@ library(dplyr)
 library(stringr)
 
 # (a) semester_dummy_tidy
-# ステップ 1: データの読み込みｚｚｚｚｚｚｚｚｚｚｚ
+# ステップ 1: データの読み込み
 # semester_data_1.csv と semester_data_2.csv を読み込み
 semester_dummy_1 <- read_csv("semester_dummy/semester_data_1.csv")
 semester_dummy_2 <- read_csv("semester_dummy/semester_data_2.csv")
