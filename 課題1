@@ -1,7 +1,7 @@
 library(tidyverse)
 library(readxl)
-library(dplyr)
 library(stringr)
+library(dplyr)
 
 # (a) semester_dummy_tidy
 # ステップ 1: データの読み込み
