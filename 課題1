@@ -1,0 +1,102 @@
+library(tidyverse)
+library(readxl)
+library(dplyr)
+library(stringr)
+
+# (a) semester_dummy_tidy
+# ステップ 1: データの読み込み
+# semester_data_1.csv と semester_data_2.csv を読み込み
+semester_dummy_1 <- read_csv("semester_dummy/semester_data_1.csv")
+semester_dummy_2 <- read_csv("semester_dummy/semester_data_2.csv")
+
+# ステップ 2: データの結合
+# 2つのデータセットを結合し、一行目を列名として設定
+semester_dummy_tidy <- rbind(semester_dummy_1, semester_dummy_2)
+colnames(semester_dummy_tidy) <- semester_dummy_tidy[1, ]
+semester_dummy_tidy <- semester_dummy_tidy[-1, ]
+
+# ステップ 3: 'Y'列の削除
+
+semester_dummy_tidy <- semester_dummy_tidy %>% select(-"Y")
+
+
+# (b) gradrate_tidy
+# ステップ 1: データの読み込み
+# 1991年から2016年までのデータを読み込み。1994年は除外
+years <- setdiff(1991:2016, 1994)
+file_names <- paste0("outcome/", years, " .xlsx")
+
+# 除外された年のデータを結合
+data_list <- purrr::map(file_names, read_excel)
+gradrate_tidy <- dplyr::bind_rows(data_list)
+
+# ステップ 2: 女子学生のスケーリング
+# 女子学生の4年卒業率を0から1のスケールに変更
+gradrate_tidy$women_gradrate_4yr <- gradrate_tidy$women_gradrate_4yr * 0.01
+
+
+# (c) covariates_tidy
+# ステップ 1: データの読み込み
+
+covariates <- read_excel("covariates/covariates.xlsx")
+
+# ステップ 2と3: 列名の変更とデータの変換
+# 'university_id' 列の名前を 'unitid' に変更し、'unitid' 列から 'aaaa' を削除
+covariates <- covariates %>%
+  rename(unitid = university_id) %>%
+  mutate(unitid = str_replace_all(unitid, "aaaa", ""))
+
+# ステップ 4: Wide型への変換
+# 'category' 列に含まれる値を分離して別の列として追加
+covariates_tidy <- covariates %>%
+  pivot_wider(names_from = category, values_from = value)
+
+
+# (d) gradrate_ready
+# ステップ 1: 4年卒業率の計算
+# 男女合計および男子学生の4年卒業率を計算し、新たな列として追加
+gradrate_tidy$m_4yrgrads <- as.numeric(gradrate_tidy$m_4yrgrads)
+gradrate_tidy$m_cohortsize <- as.numeric(gradrate_tidy$m_cohortsize)
+gradrate_tidy$men_gradrate_4yr <- gradrate_tidy$m_4yrgrads / gradrate_tidy$m_cohortsize
+gradrate_tidy$totcohortsize <- as.numeric(gradrate_tidy$totcohortsize)
+gradrate_tidy$tot4yrgrads <- as.numeric(gradrate_tidy$tot4yrgrads)
+gradrate_tidy$totgradrate_4yr <- gradrate_tidy$tot4yrgrads / gradrate_tidy$totcohortsize
+
+# ステップ 2: 卒業率の整形
+# 卒業率を有効数字3桁に調整
+gradrate_tidy$men_gradrate_4yr <- round(gradrate_tidy$men_gradrate_4yr, digits = 3)
+gradrate_tidy$totgradrate_4yr <- round(gradrate_tidy$totgradrate_4yr, digits = 3)
+gradrate_tidy$women_gradrate_4yr <- round(gradrate_tidy$women_gradrate_4yr, digits = 3)
+
+# ステップ 3: 欠損値の削除
+# 卒業率に欠損値が含まれる行を削除
+gradrate_ready <- gradrate_tidy[complete.cases(gradrate_tidy[, c("totgradrate_4yr", "men_gradrate_4yr", "women_gradrate_4yr")]), ]
+
+# (e) covariates_ready
+# ステップ 1: データ期間の調整
+# 1991年～2016年（1994年除く）のデータ期間に合わせる
+covariates_tidy <- covariates_tidy %>% filter(year %in% years)
+
+# ステップ 2: unitid の調整
+# gradrate_tidy の unitid に合わせて covariates の unitid を調整
+covariates_ready <- covariates_tidy %>% filter(unitid %in% gradrate_ready$unitid)
+
+# (f) master
+# ステップ 1: データの結合
+# semester_dummy_tidy、covariates_ready、gradrate_ready を結合
+covariates_ready$unitid <- as.character(covariates_ready$unitid)
+gradrate_ready$unitid <- as.character(gradrate_ready$unitid)
+semester_dummy_tidy$unitid <- as.character(semester_dummy_tidy$unitid)
+covariates_ready$year <- as.numeric(covariates_ready$year)
+gradrate_ready$year <- as.numeric(gradrate_ready$year)
+semester_dummy_tidy$year <- as.numeric(semester_dummy_tidy$year)
+master <- semester_dummy_tidy %>%
+  left_join(covariates_ready, by = c("unitid", "year")) %>%
+  left_join(gradrate_ready, by = c("unitid", "year"))
+
+# ステップ 2: 白人学生割合の計算
+# 白人学生が学生全体に占める割合を計算し、小数第3位までに調整
+master$white_cohortsize <- as.numeric(master$white_cohortsize)
+master$totcohortsize <- as.numeric(master$totcohortsize)
+master$white_rate <- master$white_cohortsize / master$totcohortsize
+master$white_rate <- round(master$white_rate, digits = 3)
